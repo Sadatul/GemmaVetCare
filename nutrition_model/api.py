@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
@@ -9,6 +9,32 @@ from cattle_advisor import CattleNutritionAdvisor
 load_dotenv()
 
 app = FastAPI(title="Cattle Nutrition Advisor API")
+
+INTERNAL_TO_API_MAPPING = {
+    "DM Intake (lbs/day)": "dmIntakePerDay",
+    "TDN (% DM)": "tdnPercentDm",
+    "NEm (Mcal/lb)": "nemMcalPerLb",
+    "NEg (Mcal/lb)": "negMcalPerLb",
+    "CP (% DM)": "cpPercentDm",
+    "Ca (%DM)": "caPercentDm",
+    "P (% DM)": "pPercentDm",
+    "TDN (lbs)": "tdnLbs",
+    "NEm (Mcal)": "nemMcal",
+    "NEg (Mcal)": "negMcal",
+    "CP (lbs)": "cpLbs",
+    "Ca (grams)": "caGrams",
+    "P (grams)": "pGrams"
+}
+
+API_TO_INTERNAL_MAPPING = {v: k for k, v in INTERNAL_TO_API_MAPPING.items()}
+
+def translate_to_api_format(predictions: Dict) -> Dict:
+    """Translate predictions to API format (camelCase keys)"""
+    return {INTERNAL_TO_API_MAPPING[key]: value for key, value in predictions.items()}
+
+def translate_to_internal_format(predictions: Dict) -> Dict:
+    """Translate API format back to internal format"""
+    return {API_TO_INTERNAL_MAPPING[key]: value for key, value in predictions.items()}
 
 # Get API key
 api_key = os.getenv('GOOGLE_API_KEY')
@@ -45,7 +71,9 @@ async def predict_nutrition(request: NutritionRequest):
             adg=request.adg
         )
         
-        return predictions
+        # Convert to API format (camelCase keys)
+        api_format_predictions = translate_to_api_format(predictions)
+        return api_format_predictions
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -57,8 +85,12 @@ async def generate_feed_recommendation(request: FeedRecommendationRequest):
     try:
         if request.unavailable_ingredients is not None and len(request.unavailable_ingredients) == 0:
             request.unavailable_ingredients = None
+            
+        # Convert API format back to internal format
+        internal_predictions = translate_to_internal_format(request.predictions)
+        
         recommendation = advisor.generate_feed_recommendation(
-            predictions=request.predictions,
+            predictions=internal_predictions,
             unavailable_ingredients=request.unavailable_ingredients
         )
         
