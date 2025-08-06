@@ -88,7 +88,7 @@ class CattleAdvisorViewModel @Inject constructor() : ViewModel() {
             .map { it.trim() }
             .filter { it.isNotEmpty() }
 
-        Log.d("API Call", "Processing unavailable ingredients: $unavailableIngredients")
+        Log.d("Offline Analysis", "Processing unavailable ingredients: $unavailableIngredients")
 
         val latestResult = _analysisResults.lastOrNull()
         if (latestResult != null) {
@@ -99,33 +99,47 @@ class CattleAdvisorViewModel @Inject constructor() : ViewModel() {
                 unavailableIngredients = unavailableIngredients
             )
             _analysisResults[_analysisResults.size - 1] = updatedResult
-            Log.d("API Call", "Updated result to loading state")
+            Log.d("Offline Analysis", "Updated result to loading state")
 
             isRetryingWithUnavailableIngredients = true
             
             viewModelScope.launch(Dispatchers.IO) {
                 try {
-                    // Call the retry API with unavailable ingredients
-                    Log.d("API Call", "Calling retryWithUnavailableIngredients with: $unavailableIngredients")
-                    val newRecommendation = com.google.ai.edge.gallery.api.retryWithUnavailableIngredients(unavailableIngredients)
-                    Log.d("API Call", "Received alternative recommendation length: ${newRecommendation.length}")
-                    Log.d("API Call", "Alternative recommendation content: $newRecommendation")
+                    // Get alternative nutrition recommendations locally without unavailable ingredients
+                    Log.d("Offline Analysis", "Regenerating recommendations excluding unavailable ingredients: $unavailableIngredients")
                     
-                    // Update the result with new recommendation on main thread
-                    viewModelScope.launch(Dispatchers.Main) {
-                        val finalResult = updatedResult.copy(
-                            recommendation = newRecommendation,
-                            isLoading = false,
-                            showUnavailableIngredientsInput = true // Keep showing the input for further modifications
-                        )
-                        _analysisResults[_analysisResults.size - 1] = finalResult
-                        Log.d("API Call", "Updated analysis result with alternative recommendation on main thread")
-                        Log.d("API Call", "Final result recommendation length: ${finalResult.recommendation.length}")
-                        Log.d("API Call", "Final result loading state: ${finalResult.isLoading}")
+                    // Re-run nutrition analysis with unavailable ingredients filter
+                    val analysisResult = nutritionService.getNutritionAnalysis(
+                        cattleType = latestResult.cattleType,
+                        targetWeight = latestResult.targetWeight,
+                        bodyWeight = latestResult.bodyWeight,
+                        averageDailyGain = latestResult.averageDailyGain,
+                        unavailableIngredients = unavailableIngredients
+                    )
+                    
+                    when (analysisResult) {
+                        is CattleNutritionService.NutritionAnalysisResult.Success -> {
+                            val newRecommendation = analysisResult.formattedAnalysis
+                            Log.d("Offline Analysis", "Generated alternative recommendation locally (${newRecommendation.length} chars)")
+                            
+                            // Update the result with new recommendation on main thread
+                            viewModelScope.launch(Dispatchers.Main) {
+                                val finalResult = updatedResult.copy(
+                                    recommendation = newRecommendation,
+                                    isLoading = false,
+                                    showUnavailableIngredientsInput = true // Keep showing the input for further modifications
+                                )
+                                _analysisResults[_analysisResults.size - 1] = finalResult
+                                Log.d("Offline Analysis", "Updated analysis result with alternative recommendation")
+                            }
+                        }
+                        is CattleNutritionService.NutritionAnalysisResult.Error -> {
+                            throw Exception(analysisResult.message)
+                        }
                     }
                     
                 } catch (e: Exception) {
-                    Log.e("API Call", "Error retrying with unavailable ingredients", e)
+                    Log.e("Offline Analysis", "Error regenerating recommendation with unavailable ingredients", e)
                     viewModelScope.launch(Dispatchers.Main) {
                         errorMessage = "Failed to regenerate recommendation: ${e.message}"
                         
@@ -139,12 +153,12 @@ class CattleAdvisorViewModel @Inject constructor() : ViewModel() {
                 } finally {
                     viewModelScope.launch(Dispatchers.Main) {
                         isRetryingWithUnavailableIngredients = false
-                        Log.d("API Call", "Retry operation completed")
+                        Log.d("Offline Analysis", "Retry operation completed")
                     }
                 }
             }
         } else {
-            Log.w("API Call", "No latest result found to retry with unavailable ingredients")
+            Log.w("Offline Analysis", "No latest result found to retry with unavailable ingredients")
         }
     }
 
@@ -210,16 +224,56 @@ class CattleAdvisorViewModel @Inject constructor() : ViewModel() {
                 
                 when (analysisResult) {
                     is CattleNutritionService.NutritionAnalysisResult.Success -> {
-                        // Display the nutrition analysis result directly without LLM enhancement
+                        // Step 1: Display the nutrition analysis result first
                         updateAnalysisResult(
                             cattleType = cattleType,
                             targetWeight = targetWeight,
                             bodyWeight = bodyWeight,
                             averageDailyGain = averageDailyGain,
-                            recommendation = analysisResult.formattedAnalysis,
+                            recommendation = "=== NUTRITION MODEL ANALYSIS ===\n\n${analysisResult.formattedAnalysis}",
                             isLoading = false,
-                            showUnavailableIngredientsInput = true // Show input after initial analysis
+                            showUnavailableIngredientsInput = false
                         )
+                        
+                        // Step 2: Add a loading state for LoRA enhancement
+                        val loraLoadingResult = CattleAdvisorResult(
+                            recommendation = "",
+                            cattleType = cattleType,
+                            targetWeight = targetWeight,
+                            bodyWeight = bodyWeight,
+                            averageDailyGain = averageDailyGain,
+                            isLoading = true
+                        )
+                        viewModelScope.launch(Dispatchers.Main) {
+                            _analysisResults.add(loraLoadingResult)
+                        }
+                        
+                        // Step 3: Enhance with LoRA model
+                        enhanceWithLoRaLLM(
+                            context = context,
+                            baseRecommendation = analysisResult.formattedAnalysis,
+                            nutritionPredictions = mapOf(
+                                "DM Intake (lbs/day)" to analysisResult.prediction.dryMatterIntake,
+                                "TDN (% DM)" to analysisResult.prediction.tdnPercentage,
+                                "NEm (Mcal/lb)" to analysisResult.prediction.nemPerLb,
+                                "NEg (Mcal/lb)" to analysisResult.prediction.negPerLb,
+                                "CP (% DM)" to analysisResult.prediction.cpPercentage,
+                                "Ca (%DM)" to analysisResult.prediction.caPercentage,
+                                "P (% DM)" to analysisResult.prediction.pPercentage,
+                                "TDN (lbs)" to analysisResult.prediction.tdnLbs,
+                                "NEm (Mcal)" to analysisResult.prediction.nemMcal,
+                                "NEg (Mcal)" to analysisResult.prediction.negMcal,
+                                "CP (lbs)" to analysisResult.prediction.cpLbs,
+                                "Ca (grams)" to analysisResult.prediction.caGrams,
+                                "P (grams)" to analysisResult.prediction.pGrams
+                            ),
+                            cattleType = cattleType,
+                            targetWeight = targetWeight,
+                            bodyWeight = bodyWeight,
+                            averageDailyGain = averageDailyGain,
+                            modelManagerViewModel = modelManagerViewModel
+                        )
+                        
                         isAnalyzing = false
                     }
                     is CattleNutritionService.NutritionAnalysisResult.Error -> {
@@ -319,20 +373,18 @@ class CattleAdvisorViewModel @Inject constructor() : ViewModel() {
                 model = loraModel,
                 input = feedRecommendationPrompt,
                 resultListener = { partialResult, done ->
-                    // Update with sequential results: Nutrition Model → LoRA Model
-                    val combinedRecommendation = if (done) {
-                        "## Nutrition Model Analysis\n\n$baseRecommendation\n\n---\n\n## LoRA Model Enhancement\n\n$partialResult"
+                    // Update the second (LoRA) result separately - don't combine with nutrition result
+                    val loraRecommendation = if (done) {
+                        "=== LORA MODEL ENHANCEMENT ===\n\n$partialResult\n\n---\n\n*This AI-enhanced recommendation is based on the nutrition analysis above and provides additional feeding insights and suggestions.*"
                     } else {
-                        "## Nutrition Model Analysis\n\n$baseRecommendation\n\n---\n\n## LoRA Model Enhancement\n\n$partialResult"
+                        "=== LORA MODEL ENHANCEMENT ===\n\n$partialResult"
                     }
                     
-                    updateAnalysisResult(
-                        cattleType = cattleType,
-                        targetWeight = targetWeight,
-                        bodyWeight = bodyWeight,
-                        averageDailyGain = averageDailyGain,
-                        recommendation = combinedRecommendation,
-                        isLoading = !done
+                    // Update the last (LoRA loading) result in the list
+                    updateLastAnalysisResult(
+                        recommendation = loraRecommendation,
+                        isLoading = !done,
+                        showUnavailableIngredientsInput = done // Show ingredients input when LoRA is complete
                     )
                     
                     if (done) {
@@ -353,13 +405,11 @@ class CattleAdvisorViewModel @Inject constructor() : ViewModel() {
                 else -> "LoRa model unavailable due to: ${e.message}"
             }
             
-            updateAnalysisResult(
-                cattleType = cattleType,
-                targetWeight = targetWeight,
-                bodyWeight = bodyWeight,
-                averageDailyGain = averageDailyGain,
-                recommendation = "## Nutrition Model Analysis\n\n$baseRecommendation\n\n---\n\n## LoRA Model Enhancement\n\n*$errorMessage*\n\n**Note**: The nutrition analysis above provides scientific feeding recommendations based on cattle type, weight, and growth targets. The LoRa model would have provided additional AI-enhanced suggestions but is currently unavailable.",
-                isLoading = false
+            // Update the LoRA result separately with error message
+            updateLastAnalysisResult(
+                recommendation = "=== LORA MODEL ENHANCEMENT ===\n\n*$errorMessage*\n\n**Note**: The nutrition analysis above provides scientific feeding recommendations based on cattle type, weight, and growth targets. The LoRa model would have provided additional AI-enhanced suggestions but is currently unavailable.",
+                isLoading = false,
+                showUnavailableIngredientsInput = true
             )
             isAnalyzing = false
             Log.w(TAG, "LoRa AI enhancement failed, using base recommendation (${e.message})", e)
@@ -383,6 +433,21 @@ class CattleAdvisorViewModel @Inject constructor() : ViewModel() {
         }
         if (index >= 0) {
             _analysisResults[index] = _analysisResults[index].copy(
+                recommendation = recommendation,
+                isLoading = isLoading,
+                showUnavailableIngredientsInput = showUnavailableIngredientsInput
+            )
+        }
+    }
+    
+    private fun updateLastAnalysisResult(
+        recommendation: String,
+        isLoading: Boolean,
+        showUnavailableIngredientsInput: Boolean = false
+    ) {
+        if (_analysisResults.isNotEmpty()) {
+            val lastIndex = _analysisResults.size - 1
+            _analysisResults[lastIndex] = _analysisResults[lastIndex].copy(
                 recommendation = recommendation,
                 isLoading = isLoading,
                 showUnavailableIngredientsInput = showUnavailableIngredientsInput

@@ -18,8 +18,6 @@ package com.google.ai.edge.gallery.nutrition
 
 import android.content.Context
 import android.util.Log
-import com.google.ai.edge.gallery.api.NutritionQueryParams
-import com.google.ai.edge.gallery.api.predictNutrition
 import java.io.IOException
 
 class CattleNutritionService private constructor() {
@@ -224,24 +222,40 @@ class CattleNutritionService private constructor() {
         prediction: NutritionPrediction,
         feedMenu: FeedMenu
     ): String {
-        // Map cattle type string to integer value for API
-        val typeValue = when (cattleType) {
-            "Growing Steer/Heifer" -> 0
-            "Growing Yearlings" -> 1
-            "Growing Mature Bulls" -> 2
-            else -> 1 // default to Growing Yearlings
+        
+        // Create a formatted analysis text locally without API calls
+        val analysis = StringBuilder()
+        
+        analysis.append("=== CATTLE NUTRITION ANALYSIS ===\n\n")
+        analysis.append("Cattle Information:\n")
+        analysis.append("• Type: $cattleType\n")
+        analysis.append("• Current Weight: ${bodyWeight.toInt()} lbs\n")
+        analysis.append("• Target Weight: ${targetWeight.toInt()} lbs\n")
+        analysis.append("• Average Daily Gain: $averageDailyGain lbs/day\n\n")
+        
+        analysis.append("Daily Nutrition Requirements:\n")
+        analysis.append("• Dry Matter Intake: ${"%.1f".format(prediction.dryMatterIntake)} lbs/day\n")
+        analysis.append("• Total Digestible Nutrients: ${"%.1f".format(prediction.tdnPercentage)}% (${"%.1f".format(prediction.tdnLbs)} lbs)\n")
+        analysis.append("• Net Energy Maintenance: ${"%.2f".format(prediction.nemPerLb)} Mcal/lb (${"%.1f".format(prediction.nemMcal)} Mcal)\n")
+        analysis.append("• Net Energy Gain: ${"%.2f".format(prediction.negPerLb)} Mcal/lb (${"%.1f".format(prediction.negMcal)} Mcal)\n")
+        analysis.append("• Crude Protein: ${"%.1f".format(prediction.cpPercentage)}% (${"%.2f".format(prediction.cpLbs)} lbs)\n")
+        analysis.append("• Calcium: ${"%.2f".format(prediction.caPercentage)}% (${"%.0f".format(prediction.caGrams)} g)\n")
+        analysis.append("• Phosphorus: ${"%.2f".format(prediction.pPercentage)}% (${"%.0f".format(prediction.pGrams)} g)\n\n")
+        
+        analysis.append("Recommended Feed Menu:\n")
+        for ((index, recommendation) in feedMenu.recommendations.withIndex()) {
+            analysis.append("${index + 1}. ${recommendation.ingredient.name}: ${"%.1f".format(recommendation.amountLbsDM)} lbs DM\n")
         }
         
-        val params = NutritionQueryParams(
-            type_val = typeValue,
-            target_weight = targetWeight.toInt(),
-            body_weight = bodyWeight.toInt(),
-            adg = averageDailyGain
-        )
+        analysis.append("\nTotal Feed Summary:\n")
+        analysis.append("• Total Dry Matter: ${"%.1f".format(feedMenu.totalDryMatter)} lbs\n")
+        analysis.append("• Total TDN: ${"%.1f".format(feedMenu.totalTdnLbs)} lbs\n")
+        analysis.append("• Total NEm: ${"%.1f".format(feedMenu.totalNemMcal)} Mcal\n")
+        analysis.append("• Total NEg: ${"%.1f".format(feedMenu.totalNegMcal)} Mcal\n")
+        analysis.append("• Total CP: ${"%.2f".format(feedMenu.totalCpLbs)} lbs\n")
         
-        val prediction = predictNutrition(params)
-        Log.d("API Call", "Nutrition prediction response: $prediction")
-        return prediction
+        Log.d(TAG, "Generated offline nutrition analysis")
+        return analysis.toString()
     }
     
     data class ValidationResult(

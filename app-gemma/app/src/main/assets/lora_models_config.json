@@ -1,0 +1,23 @@
+{
+  "models": [
+    {
+      "name": "LoRa-3n-DDX-ft-int4",
+      "modelId": "Irtiaz/LoRa-DDX",
+      "modelFile": "lora-3n-DDX-ft-int4.task",
+      "description": "Disease Detector and Livestock Advisor - LoRa fine-tuned model specialized for cattle nutrition and disease analysis",
+      "sizeInBytes": 3136226711,
+      "estimatedPeakMemoryInBytes": 5905580032,
+      "commitHash": "a7f544cfee68f579fabadb22aa9284faa4020a0f5358d0e15b49fdd4cefe4200",
+      "llmSupportImage": true,
+      "defaultConfig": {
+        "topK": 64,
+        "topP": 0.95,
+        "temperature": 1.0,
+        "maxTokens": 4096,
+        "accelerators": "cpu,gpu"
+      },
+      "taskTypes": ["llm_chat", "llm_prompt_lab", "llm_ask_image", "llm_cattle_advisor"],
+      "bestForTaskTypes": ["llm_ask_image", "llm_cattle_advisor"]
+    }
+  ]
+}
