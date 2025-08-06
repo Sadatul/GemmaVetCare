@@ -7,3 +7,4 @@ __pycache__/
 *.pkl
 *.pyd
 .env
+nutrition_model/catboost_info/
