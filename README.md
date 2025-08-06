@@ -7,6 +7,7 @@ An Android-based livestock care application designed specifically for rural farm
 ## 📋 Table of Contents
 
 - [Overview](#overview)
+- [Getting Started](#getting-started)
 - [Key Features](#key-features)
   - [🔬 Disease Detection](#-disease-detection)
   - [🌾 Nutrition Guidance](#-nutrition-guidance)
@@ -20,9 +21,6 @@ An Android-based livestock care application designed specifically for rural farm
   - [Disease Detection Results](#disease-detection-results)
   - [Nutrition Prediction Accuracy](#nutrition-prediction-accuracy)
 - [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-  - [Quick Start (Recommended)](#quick-start-recommended)
-  - [Usage Guide](#usage-guide)
 - [Model Development](#model-development)
   - [Disease Detection Model](#disease-detection-model)
   - [Nutrition Models](#nutrition-models)
@@ -43,6 +41,41 @@ GemmaVetCare addresses these gaps through:
 - **Offline capabilities** for rural areas with limited connectivity
 - **AI-powered multimodal disease diagnosis**
 - **Context-aware nutritional recommendations**
+
+## Getting Started
+
+### Quick Start (Recommended)
+
+**📱 Device Requirements:**
+- **High-end devices are preferred** for optimal performance
+- Android API level 24+ required
+- Sufficient storage space for AI model (approximately 1.5GB)
+
+1. **Download the APK**
+   - Download the latest release: [GemmaVetCare APK](https://github.com/Sadatul/GemmaVetCare/releases/download/1.0.0-RELEASE/app-debug.apk)
+   - Install the APK on your Android device
+
+2. **Download the AI Model**
+   - Open the app and navigate to "Ask Disease" section
+   - Download the **LoRa-3n-DDX-ft-in4** model (fine-tuned Gemma-3n 2b model)
+   - **Wait for the model to load completely** - this may take a few minutes
+   - This step is essential for all features to work properly
+
+3. **Enable GPU Acceleration (Recommended for High-End Devices)**
+   - In the "Ask Disease" page, look for the **tuning icon** in the **top left corner**
+   - Click on the tuning icon and select **"GPU"** option
+   - **Wait for the model to reload** with GPU acceleration
+   - This will result in **much faster response times** for disease detection
+
+4. **Complete Setup**
+   - Once the model is loaded (with or without GPU), all app features will be fully accessible
+   - The app now works completely offline with AI-powered disease diagnosis and nutrition guidance
+
+**⚠️ Important Notes:**
+- Model loading time varies based on device specifications
+- GPU acceleration significantly improves performance on compatible devices
+- Be patient during initial model loading - it's a one-time setup process
+
 
 ## Key Features
 
@@ -126,44 +159,6 @@ See how GemmaVetCare revolutionizes livestock care in rural Bangladesh through:
 │   └── saved_models/          # Trained model artifacts
 └── assets/                    # Documentation assets
 ```
-
-## Getting Started
-
-### Quick Start (Recommended)
-
-**📱 Device Requirements:**
-- **High-end devices are preferred** for optimal performance
-- Android API level 24+ required
-- Sufficient storage space for AI model (approximately 1.5GB)
-
-1. **Download the APK**
-   - Download the latest release: [GemmaVetCare APK](https://github.com/Sadatul/GemmaVetCare/releases/download/1.0.0-RELEASE/app-debug.apk)
-   - Install the APK on your Android device
-
-2. **Download the AI Model**
-   - Open the app and navigate to "Ask Disease" section
-   - Download the **LoRa-3n-DDX-ft-in4** model (fine-tuned Gemma-3n 2b model)
-   - **Wait for the model to load completely** - this may take a few minutes
-   - This step is essential for all features to work properly
-
-3. **Enable GPU Acceleration (Recommended for High-End Devices)**
-   - In the "Ask Disease" page, look for the **tuning icon** in the **top left corner**
-   - Click on the tuning icon and select **"GPU"** option
-   - **Wait for the model to reload** with GPU acceleration
-   - This will result in **much faster response times** for disease detection
-
-4. **Complete Setup**
-   - Once the model is loaded (with or without GPU), all app features will be fully accessible
-   - The app now works completely offline with AI-powered disease diagnosis and nutrition guidance
-
-**⚠️ Important Notes:**
-- Model loading time varies based on device specifications
-- GPU acceleration significantly improves performance on compatible devices
-- Be patient during initial model loading - it's a one-time setup process
-
-### Usage Guide
-For detailed usage instructions and feature demonstrations, watch our comprehensive tutorial:
-📺 **[GemmaVetCare Usage Guide](https://www.youtube.com/watch?v=EoxyudCIVSo)**
 
 ## Model Development
 
